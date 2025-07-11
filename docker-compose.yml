@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Node.js application service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: az-forms-api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      # You can choose which MongoDB to use by commenting/uncommenting these lines
+      # For local MongoDB:
+      #- VITE_MONGODB_URI=mongodb://mongodb:27017/formbuilder
+      # For MongoDB Atlas (uncomment to use):
+      # - VITE_MONGODB_URI=${VITE_MONGODB_URI}
+      - DB_NAME=formbuilder
+    volumes:
+      - ./uploads:/app/uploads
+      # For development, you can mount the source code for hot reloading
+      # - .:/app
+      # - /app/node_modules
+ #   depends_on:
+ #     - mongodb
+    networks:
+      - az-forms-network
+
+  # MongoDB service (for local development)
+  #mongodb:
+  #  image: mongo:latest
+  #  container_name: az-forms-mongodb
+  #  restart: unless-stopped
+  #  ports:
+  #    - "27017:27017"
+  #  volumes:
+  #    - mongodb_data:/data/db
+  #  networks:
+  #    - az-forms-network
+
+networks:
+  az-forms-network:
+    driver: bridge
+
+#volumes:
+#  mongodb_data:
+#    driver: local

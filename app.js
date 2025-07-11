@@ -133,12 +133,68 @@ app.get('/api/forms/:id', async (req, res) => {
   }
 });
 
-// List all responses
+// List all responses with labels
 app.get('/api/responses', async (req, res) => {
   try {
     const db = await connectToDatabase();
     const responses = await db.collection('form_responses').find({}).toArray();
-    res.json(responses);
+    
+    // Process each response to include labels from the form template
+    const responsesWithLabels = await Promise.all(responses.map(async (response) => {
+      // Get the form ID from the response
+      const formId = response.formId;
+      
+      if (!formId) {
+        // If no formId is present, return the response as is
+        return response;
+      }
+      
+      // Find the corresponding form template
+      const formTemplate = await db.collection('forms').findOne({ id: formId });
+      
+      if (!formTemplate) {
+        // If form template not found, return the response as is
+        return response;
+      }
+      
+      // Create a new object with the response data and labels
+      const responseWithLabels = { ...response };
+      
+        // Add labels to each field in the response
+        if (formTemplate.fields && Array.isArray(formTemplate.fields)) {
+          // Create a map of field IDs to their labels for quick lookup
+          const fieldLabelsMap = {};
+          formTemplate.fields.forEach(field => {
+            if (field.id && field.label) {
+              fieldLabelsMap[field.id] = field.label;
+            }
+          });
+          
+          // Add a labels object to the response
+          responseWithLabels.labels = {};
+          
+          // Check if responses are nested in a 'responses' object
+          if (response.responses && typeof response.responses === 'object') {
+            // For each field in the nested responses object, add its label if available
+            Object.keys(response.responses).forEach(fieldKey => {
+              if (fieldLabelsMap[fieldKey]) {
+                responseWithLabels.labels[fieldKey] = fieldLabelsMap[fieldKey];
+              }
+            });
+          } else {
+            // For each field in the response, add its label if available (fallback to original behavior)
+            Object.keys(response).forEach(fieldKey => {
+              if (fieldLabelsMap[fieldKey]) {
+                responseWithLabels.labels[fieldKey] = fieldLabelsMap[fieldKey];
+              }
+            });
+          }
+        }
+      
+      return responseWithLabels;
+    }));
+    
+    res.json(responsesWithLabels);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

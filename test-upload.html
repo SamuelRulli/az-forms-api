@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .container {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            display: block;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #response, #multiResponse, #filesList {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+        }
+        .file-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .file-info {
+            margin-bottom: 5px;
+        }
+        .file-link {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        .file-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Upload API Test</h1>
+    
+    <div class="container">
+        <h2>Single File Upload</h2>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="file">Select File:</label>
+                <input type="file" id="file" name="file" required>
+            </div>
+            <div class="form-group">
+                <label for="formId">Form ID (optional):</label>
+                <input type="text" id="formId" name="formId">
+            </div>
+            <button type="submit">Upload File</button>
+        </form>
+        <div id="response"></div>
+    </div>
+    
+    <div class="container">
+        <h2>Multiple Files Upload</h2>
+        <form id="multiUploadForm">
+            <div class="form-group">
+                <label for="files">Select Files (up to 5):</label>
+                <input type="file" id="files" name="files" multiple required>
+            </div>
+            <div class="form-group">
+                <label for="multiFormId">Form ID (optional):</label>
+                <input type="text" id="multiFormId" name="formId">
+            </div>
+            <button type="submit">Upload Files</button>
+        </form>
+        <div id="multiResponse"></div>
+    </div>
+    
+    <div class="container">
+        <h2>List Uploaded Files</h2>
+        <button id="listFiles">Refresh Files List</button>
+        <div id="filesList"></div>
+    </div>
+
+    <script>
+        // Single file upload
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('file');
+            const formId = document.getElementById('formId').value;
+            const responseDiv = document.getElementById('response');
+            
+            if (!fileInput.files.length) {
+                responseDiv.textContent = 'Please select a file to upload.';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            if (formId) {
+                formData.append('formId', formId);
+            }
+            
+            responseDiv.textContent = 'Uploading...';
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    responseDiv.innerHTML = `
+                        <h3>Upload Successful!</h3>
+                        <div class="file-info"><strong>File ID:</strong> ${result.file.id}</div>
+                        <div class="file-info"><strong>Original Name:</strong> ${result.file.originalName}</div>
+                        <div class="file-info"><strong>Size:</strong> ${formatFileSize(result.file.size)}</div>
+                        <div class="file-info"><strong>Type:</strong> ${result.file.mimetype}</div>
+                        <div class="file-info">
+                            <strong>Download URL:</strong> 
+                            <a href="${result.file.downloadUrl}" target="_blank" class="file-link">Download File</a>
+                        </div>
+                    `;
+                } else {
+                    responseDiv.textContent = `Error: ${result.error || 'Unknown error occurred'}`;
+                }
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // Multiple files upload
+        document.getElementById('multiUploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const filesInput = document.getElementById('files');
+            const formId = document.getElementById('multiFormId').value;
+            const responseDiv = document.getElementById('multiResponse');
+            
+            if (!filesInput.files.length) {
+                responseDiv.textContent = 'Please select files to upload.';
+                return;
+            }
+            
+            if (filesInput.files.length > 5) {
+                responseDiv.textContent = 'You can only upload up to 5 files at once.';
+                return;
+            }
+            
+            const formData = new FormData();
+            // Important: The field name 'files' must match what the server expects in upload.array('files', 5)
+            for (let i = 0; i < filesInput.files.length; i++) {
+                formData.append('files', filesInput.files[i]);
+            }
+            
+            if (formId) {
+                formData.append('formId', formId);
+            }
+            
+            responseDiv.textContent = 'Uploading...';
+            
+            try {
+                const response = await fetch('/api/upload/multiple', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    let filesHtml = `<h3>${result.message}</h3>`;
+                    
+                    result.files.forEach(file => {
+                        filesHtml += `
+                            <div class="file-item">
+                                <div class="file-info"><strong>File ID:</strong> ${file.id}</div>
+                                <div class="file-info"><strong>Original Name:</strong> ${file.originalName}</div>
+                                <div class="file-info"><strong>Size:</strong> ${formatFileSize(file.size)}</div>
+                                <div class="file-info"><strong>Type:</strong> ${file.mimetype}</div>
+                                <div class="file-info">
+                                    <strong>Download URL:</strong> 
+                                    <a href="${file.downloadUrl}" target="_blank" class="file-link">Download File</a>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    responseDiv.innerHTML = filesHtml;
+                } else {
+                    responseDiv.textContent = `Error: ${result.error || 'Unknown error occurred'}`;
+                }
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // List files
+        document.getElementById('listFiles').addEventListener('click', async function() {
+            const filesListDiv = document.getElementById('filesList');
+            filesListDiv.textContent = 'Loading files...';
+            
+            try {
+                const response = await fetch('/api/files');
+                const files = await response.json();
+                
+                if (files.length === 0) {
+                    filesListDiv.textContent = 'No files have been uploaded yet.';
+                    return;
+                }
+                
+                let filesHtml = `<h3>Total Files: ${files.length}</h3>`;
+                
+                files.forEach(file => {
+                    filesHtml += `
+                        <div class="file-item">
+                            <div class="file-info"><strong>File ID:</strong> ${file._id}</div>
+                            <div class="file-info"><strong>Original Name:</strong> ${file.originalName}</div>
+                            <div class="file-info"><strong>Upload Date:</strong> ${new Date(file.uploadDate).toLocaleString()}</div>
+                            <div class="file-info"><strong>Size:</strong> ${formatFileSize(file.size)}</div>
+                            <div class="file-info"><strong>Type:</strong> ${file.mimetype}</div>
+                            <div class="file-info">
+                                <strong>Download URL:</strong> 
+                                <a href="${file.downloadUrl}" target="_blank" class="file-link">Download File</a>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                filesListDiv.innerHTML = filesHtml;
+            } catch (error) {
+                filesListDiv.textContent = `Error loading files: ${error.message}`;
+            }
+        });
+        
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>
